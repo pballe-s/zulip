@@ -19,6 +19,9 @@ import * as stream_data from "./stream_data.ts";
 import * as stream_ui_updates from "./stream_ui_updates.ts";
 import type {StreamSubscription} from "./sub_store.ts";
 import * as ui_report from "./ui_report.ts";
+import * as people from "./people.ts";
+import * as notify_dialog from "./notify_dialog.ts";
+import * as modals from "./modals.ts";
 
 export function set_right_panel_title(sub: StreamSubscription): void {
     let title_icon_color = "#333333";
@@ -254,13 +257,35 @@ export function sub_or_unsub(
     sub: StreamSubscription,
     $stream_row: JQuery | undefined = undefined,
 ): void {
+	function is_only_admin_in_stream(sub: StreamSubscription): boolean{
+		let subscriber_ids = sub.get_subscribers;
+		let count = 0;
+		for(let subscriber_id in subscriber_ids){
+			if(people.get_by_user_id(subscriber_id).is_admin){
+				count++;
+			}
+		}
+		if(count === 0 && current_user.is_admin){
+			return true;
+		}
+		return false;
+	}
     if (sub.subscribed) {
         // TODO: This next line should allow guests to access web-public streams.
         if (
             (sub.invite_only && !stream_data.has_content_access_via_group_permissions(sub)) ||
             current_user.is_guest
         ) {
-            unsubscribe_from_private_stream(sub);
+			if(is_only_admin_in_stream(sub)){
+				notify_dialog.launch({
+					html_heading: $t_html(
+					{defaultMessage: "Last administrator cannot unsubscribe from private channel, please elect or add a new administrator"}
+					),
+					on_click: modals.close_active,
+				});
+			}else{
+				unsubscribe_from_private_stream(sub);
+			}
             return;
         }
         ajaxUnsubscribe(sub, $stream_row);
